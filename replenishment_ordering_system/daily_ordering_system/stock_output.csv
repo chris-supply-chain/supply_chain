@@ -1,0 +1,4 @@
+Product,Target Stock,Cycle Stock,Safety Stock,Daily Demand,Daily Sales,Final Planning Horizon (Days)
+Product A,486,440,46,20,18,22
+Product B,993,960,33,30,28,32
+Product C,1018,960,58,40,38,24
