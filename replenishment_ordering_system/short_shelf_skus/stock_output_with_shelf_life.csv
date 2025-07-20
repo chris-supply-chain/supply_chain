@@ -1,0 +1,4 @@
+Product,Initial Cycle Stock,Initial Safety Stock,Initial Target Inventory Units,Final Target Inventory Units,Final Cycle Stock,Final Safety Stock,Initial Target Weeks,Final Target Weeks,Shelf Life Days,Shelf Life Cap,Max Shelf Life Days,Max Shelf Life Weeks,Daily Sales,Daily Demand
+Product A,394.0,46,440.0,308.0,308.0,0,3.1,2.1999999999999997,22,0.7,15.399999999999999,2.1999999999999997,18,20
+Product B,627.0,33,660.0,462.0,462.0,0,3.1,2.1999999999999997,22,0.7,15.399999999999999,2.1999999999999997,28,30
+Product C,822.0,58,880.0,616.0,616.0,0,3.1,2.1999999999999997,22,0.7,15.399999999999999,2.1999999999999997,38,40
