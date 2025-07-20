@@ -1,0 +1,13 @@
+import pandas as pd 
+
+data = { 
+        'Product' : ['Product A', 'Product B', 'Product C'],
+         'sales' : [300,400,500],
+        'forecasted sales' : [250,350,450] 
+        }
+
+df = pd.DataFrame(data)
+
+df['Mape'] = (abs((df['sales'] - df['forecasted sales']) / df['sales']) * 100).round(2).astype(str) + '%'
+
+print(df)
