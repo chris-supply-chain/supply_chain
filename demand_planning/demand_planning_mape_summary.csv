@@ -1,0 +1,11 @@
+product,6 wk moving avg MAPE,exponential smoothing MAPE,colt method MAPE
+Product_1,13.89,13.59,14.64
+Product_2,16.93,,
+Product_3,13.8,,
+Product_4,14.14,,
+Product_5,18.87,,
+Product_6,12.64,,
+Product_7,13.74,,
+Product_8,16.87,,
+Product_9,18.28,,
+Product_10,19.72,,
