@@ -1,0 +1,161 @@
+import pandas as pd
+import numpy as np
+from datetime import datetime, timedelta
+from sklearn.linear_model import LinearRegression
+
+np.random.seed(42)
+
+# Parameters
+n_products = 10
+n_weeks = 52
+products = [f'Product_{i+1}' for i in range(n_products)]
+weeks = pd.date_range(start='2024-01-01', periods=n_weeks, freq='W-MON')
+
+# Generate sales data with December peak
+sales_data = []
+for product in products:
+    base = np.random.randint(80, 120)  # base sales for product
+    for i, week in enumerate(weeks):
+        # Simulate December peak
+        month = week.month
+        if month == 12:
+            peak = np.random.randint(180, 250)
+            sales = base + peak + np.random.randint(-10, 10)
+        else:
+            sales = base + np.random.randint(-20, 20)
+        # Random promotion (20% chance)
+        promotion = np.random.choice([0, 1], p=[0.8, 0.2])
+        if promotion:
+            sales += np.random.randint(10, 30)
+        sales_data.append({
+            'product_id': product,
+            'week': week.strftime('%Y-%m-%d'),
+            'promotion': promotion,
+            'sales': sales
+        })
+
+df = pd.DataFrame(sales_data)
+
+# 6-week moving average forecast
+def moving_avg_fcst(series, window=6):
+    return series.rolling(window=window, min_periods=1).mean().shift(1)
+
+def exp_smoothing(series, alpha=0.3):
+    result = [series.iloc[0]]
+    for val in series.iloc[1:]:
+        result.append(alpha * val + (1 - alpha) * result[-1])
+    return pd.Series(result).shift(1)
+
+# 3-wk no promo moving average method (average of last 3 non-promo weeks)
+def no_promo_3wk_moving_avg(series, promo_series):
+    result = []
+    for i in range(len(series)):
+        if i < 3:
+            result.append(np.nan)
+        else:
+            non_promo_sales = series[:i][promo_series[:i] == 0]
+            if len(non_promo_sales) >= 3:
+                result.append(non_promo_sales[-3:].mean())
+            else:
+                result.append(np.nan)
+    return pd.Series(result).shift(1)
+
+def linear_regression_fcst(sales, promo):
+    # Use week number and promotion as features
+    X = np.arange(len(sales)).reshape(-1, 1)
+    promo = np.array(promo).reshape(-1, 1)
+    X_full = np.hstack([X, promo])
+    preds = [np.nan]  # First week can't be predicted
+    for i in range(1, len(sales)):
+        X_train = X_full[:i]
+        y_train = sales[:i]
+        X_pred = X_full[i].reshape(1, -1)
+        if len(np.unique(y_train)) > 1:
+            model = LinearRegression().fit(X_train, y_train)
+            preds.append(model.predict(X_pred)[0])
+        else:
+            preds.append(np.nan)
+    return pd.Series(preds)
+
+# Apply forecasting methods per product
+df['6_week_moving_avg_fcst'] = np.nan
+df['exponential_smoothing_model'] = np.nan
+df['3-wk no promo moving avg'] = np.nan
+df['linear_regression_fcst'] = np.nan
+
+for product in products:
+    mask = df['product_id'] == product
+    sales = df.loc[mask, 'sales'].values
+    promo = df.loc[mask, 'promotion'].values
+    df.loc[mask, '6_week_moving_avg_fcst'] = moving_avg_fcst(pd.Series(sales))
+    df.loc[mask, 'exponential_smoothing_model'] = exp_smoothing(pd.Series(sales))
+    df.loc[mask, '3-wk no promo moving avg'] = no_promo_3wk_moving_avg(pd.Series(sales), pd.Series(promo))
+    df.loc[mask, 'linear_regression_fcst'] = linear_regression_fcst(sales, promo)
+
+def mape(y_true, y_pred):
+    mask = ~np.isnan(y_pred)
+    y_true, y_pred = np.array(y_true)[mask], np.array(y_pred)[mask]
+    return np.mean(np.abs((y_true - y_pred) / y_true)) * 100 if len(y_true) > 0 else np.nan
+
+# Calculate MAPE for each method (one row per product)
+mape_rows = []
+for product in products:
+    mask = df['product_id'] == product
+    sales = df.loc[mask, 'sales']
+    mape_ma = mape(sales, df.loc[mask, '6_week_moving_avg_fcst'])
+    mape_exp = mape(sales, df.loc[mask, 'exponential_smoothing_model'])
+    mape_no_promo = mape(sales, df.loc[mask, '3-wk no promo moving avg'])
+    mape_lr = mape(sales, df.loc[mask, 'linear_regression_fcst'])
+    mape_rows.append({
+        'product_id': product,
+        '6 wk moving avg MAPE': round(mape_ma, 2),
+        'exponential smoothing MAPE (alpha=0.3)': round(mape_exp, 2),
+        '3-wk no promo moving avg MAPE': round(mape_no_promo, 2),
+        'linear regression MAPE': round(mape_lr, 2)
+    })
+
+mape_df = pd.DataFrame(mape_rows)
+
+# Prepare the final output DataFrame with MAPE as the first row for each product
+final_rows = []
+for product in products:
+    # Get MAPE row for this product
+    mape_row = mape_df[mape_df['product_id'] == product].iloc[0]
+    # Create a blank row with MAPE values in the right columns
+    blank_row = {
+        'product_id': '',
+        'week': '',
+        'promotion': '',
+        'sales': '',
+        '6_week_moving_avg_fcst': '',
+        'exponential_smoothing_model': '',
+        '3-wk no promo moving avg': '',
+        'linear_regression_fcst': '',
+        '6 wk moving avg MAPE': mape_row['6 wk moving avg MAPE'],
+        'exponential smoothing MAPE (alpha=0.3)': mape_row['exponential smoothing MAPE (alpha=0.3)'],
+        '3-wk no promo moving avg MAPE': mape_row['3-wk no promo moving avg MAPE'],
+        'linear regression MAPE': mape_row['linear regression MAPE']
+    }
+    # Get all rows for this product
+    product_rows = df[df['product_id'] == product].copy()
+    product_rows['6 wk moving avg MAPE'] = ''
+    product_rows['exponential smoothing MAPE (alpha=0.3)'] = ''
+    product_rows['3-wk no promo moving avg MAPE'] = ''
+    product_rows['linear regression MAPE'] = ''
+    # Reorder columns
+    product_rows = product_rows[['product_id', 'week', 'promotion', 'sales',
+                                 '6_week_moving_avg_fcst', 'exponential_smoothing_model', '3-wk no promo moving avg', 'linear_regression_fcst',
+                                 '6 wk moving avg MAPE', 'exponential smoothing MAPE (alpha=0.3)', '3-wk no promo moving avg MAPE', 'linear regression MAPE']]
+    # Insert the blank row with MAPE at the top
+    final_rows.append(blank_row)
+    final_rows.extend(product_rows.to_dict('records'))
+
+final_df = pd.DataFrame(final_rows)
+
+# Save the final data
+final_df.to_csv('/Users/christian_hahn/Documents/demand_planning_data.csv', index=False)
+
+# Print the output in Python (matches CSV)
+pd.set_option('display.max_rows', 30)
+print(final_df)
+print('\nDemand planning data with MAPE summary saved to Documents.') 
